@@ -63,7 +63,7 @@ def clean_sql(raw_sql: str) -> str:
             sql = sql[:-3]
     
     # Remove any leading/trailing sql tag or whitespace
-    sql = re.sub(r"^(?i)sql\s+", "", sql.strip())
+    sql = re.sub(r"^sql\s+", "", sql.strip(), flags=re.IGNORECASE)
     # Strip trailing semicolon
     sql = sql.strip().rstrip(";")
     return sql
