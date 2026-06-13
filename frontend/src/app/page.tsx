@@ -130,13 +130,22 @@ export default function Home() {
     setLoading(true);
 
     try {
+      // Prepare chat history payload for contextualization
+      const historyPayload = messages.slice(-6).map((msg) => ({
+        role: msg.sender === "user" ? "user" : "assistant",
+        content: msg.text
+      }));
+
       const res = await fetch(`${BACKEND_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ question: text })
+        body: JSON.stringify({ 
+          question: text,
+          history: historyPayload
+        })
       });
       if (!res.ok) {
         throw new Error("Chat request failed");
