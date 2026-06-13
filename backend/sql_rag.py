@@ -137,10 +137,17 @@ def sql_rag_chain(question: str) -> str:
             f"Query Result Columns: {execution_res['columns']}\n"
             f"Query Result Rows: {execution_res['data']}\n\n"
             f"Please formulate a natural language answer to the question based on these query results. "
-            f"Keep it professional and concise."
+            f"Keep it professional, structured, and concise (using markdown tables where appropriate)."
         )
 
-        s_prompt = "You are a professional assistant reporting data analytics to healthcare executives. Use the SQL results provided to answer the user's question directly."
+        s_prompt = (
+            "You are a professional assistant reporting data analytics to healthcare executives. "
+            "Use the SQL results provided to answer the user's question directly. "
+            "If the user's question explicitly asks to list, show, or detail individual records, and the query results contain rows: "
+            "1. Present the records in a clean, aligned markdown table. "
+            "2. If there are more than 15 rows in the query result, print only the first 10 rows in the markdown table "
+            "to keep the response readable, and add a brief summary paragraph below it summarizing the remaining records and stating the total count."
+        )
 
         answer_completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
