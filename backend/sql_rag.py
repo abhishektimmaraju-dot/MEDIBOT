@@ -48,6 +48,7 @@ IMPORTANT GUIDELINES:
 - Output ONLY the raw SQL code. Do not write explanation, do not write markdown code blocks. Just output the query.
 - Use LIKE or exact matches with the unique values listed above.
 - Always check that the SQL query matches standard SQLite constraints.
+- Never use ellipses (...), abbreviations, or placeholders in the SQL query (e.g., in IN lists or WHERE clauses). The query must be fully-formed, complete, and syntactically executable.
 """
 
 def clean_sql(raw_sql: str) -> str:
