@@ -49,6 +49,7 @@ IMPORTANT GUIDELINES:
 - Use LIKE or exact matches with the unique values listed above.
 - Always check that the SQL query matches standard SQLite constraints.
 - Never use ellipses (...), abbreviations, or placeholders in the SQL query (e.g., in IN lists or WHERE clauses). The query must be fully-formed, complete, and syntactically executable.
+- Distinguish between listing and counting: If the user asks to 'list', 'show', or 'detail' records, use 'SELECT *' or select specific columns. Do NOT use COUNT() or other aggregations unless they explicitly ask for a count, total, average, or number of records.
 """
 
 def clean_sql(raw_sql: str) -> str:
@@ -143,7 +144,8 @@ def sql_rag_chain(question: str) -> str:
         s_prompt = (
             "You are a professional assistant reporting data analytics to healthcare executives. "
             "Use the SQL results provided to answer the user's question directly. "
-            "If the user's question explicitly asks to list, show, or detail individual records, and the query results contain rows: "
+            "If the query result is a single cell or a single number (such as a COUNT, SUM, or AVG), do NOT use a markdown table. Just state the number/result directly in a clear, conversational sentence.\n"
+            "If the user's question explicitly asks to list, show, or detail multiple individual records, and the query results contain multiple rows: "
             "1. Present the records in a clean, aligned markdown table. "
             "2. If there are more than 15 rows in the query result, print only the first 10 rows in the markdown table "
             "to keep the response readable, and add a brief summary paragraph below it summarizing the remaining records and stating the total count."
