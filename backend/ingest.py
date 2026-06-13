@@ -13,11 +13,13 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, SparseVectorParams, SparseIndexParams, PointStruct
 
 # Configuration
-DATA_DIR = "./mediassist_data"
-QDRANT_PATH = "./mediassist_data/qdrant_db"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, "mediassist_data")
+QDRANT_PATH = os.path.join(SCRIPT_DIR, "mediassist_data", "qdrant_db")
 COLLECTION_NAME = "medibot"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-BM25_MODEL_PATH = "./mediassist_data/bm25_model.json"
+BM25_MODEL_PATH = os.path.join(SCRIPT_DIR, "mediassist_data", "bm25_model.json")
+
 
 # Access Matrix definition
 ACCESS_MATRIX = {

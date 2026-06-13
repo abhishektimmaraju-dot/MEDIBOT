@@ -7,7 +7,9 @@ from groq import Groq
 # Load environment variables
 load_dotenv()
 
-DB_PATH = "./mediassist_data/db/mediassist.db"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(SCRIPT_DIR, "mediassist_data", "db", "mediassist.db")
+
 
 # Schema description for the LLM
 SCHEMA_PROMPT = """You are an expert SQL Translator for SQLite.

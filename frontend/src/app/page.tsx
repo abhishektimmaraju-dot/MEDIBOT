@@ -27,7 +27,6 @@ interface Message {
   sources?: Array<{ source_document: string; section_title: string; collection: string }>;
 }
 
-
 export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
@@ -41,8 +40,32 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  
+  // Theme state: "light" or "dark" (default to "dark")
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Read theme from localStorage or use system preference if first load
+    const savedTheme = localStorage.getItem("medibot-theme");
+    if (savedTheme === "light" || savedTheme === "dark") {
+      setTheme(savedTheme);
+    } else {
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setTheme(prefersDark ? "dark" : "light");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("medibot-theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("medibot-theme", "light");
+    }
+  }, [theme]);
 
   useEffect(() => {
     // Scroll to bottom whenever messages list updates
@@ -84,7 +107,6 @@ export default function Home() {
         }
       ]);
     } catch (err: any) {
-
       setErrorMsg(err.message);
     }
   };
@@ -143,20 +165,39 @@ export default function Home() {
   // Render Login Page
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-900 px-4 py-12 text-slate-100">
-        <div className="w-full max-w-lg space-y-8 rounded-2xl border border-slate-800 bg-slate-950 p-8 shadow-2xl">
+      <div className={`flex min-h-screen items-center justify-center px-4 py-12 transition-colors duration-250 ${
+        theme === "dark" ? "bg-slate-900 text-slate-100" : "bg-slate-50 text-slate-900"
+      }`}>
+        <div className={`relative w-full max-w-lg space-y-8 rounded-2xl border p-8 shadow-2xl transition-colors duration-250 ${
+          theme === "dark" ? "border-slate-800 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-900"
+        }`}>
+          {/* Theme Toggle Button in Login Page */}
+          <div className="absolute top-4 right-4">
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold border transition-all ${
+                theme === "dark"
+                  ? "border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300"
+                  : "border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+            </button>
+          </div>
+
           <div className="text-center">
-            <h2 className="text-4xl font-extrabold tracking-tight text-white bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+            <h2 className="text-4xl font-extrabold tracking-tight bg-clip-text bg-gradient-to-r from-blue-500 to-emerald-500 text-transparent">
               MediBot Login
             </h2>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className={`mt-2 text-sm ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
               Select one of the demo users below to simulate access controls.
             </p>
           </div>
           
           <form onSubmit={handleLogin} className="mt-8 space-y-6">
             <div className="space-y-4">
-              <label className="block text-sm font-medium text-slate-300">Demo Account Profile</label>
+              <label className={`block text-sm font-medium ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>Demo Account Profile</label>
               <div className="grid grid-cols-1 gap-2">
                 {DEMO_ACCOUNTS.map((acc) => (
                   <button
@@ -165,13 +206,15 @@ export default function Home() {
                     onClick={() => setSelectedUser(acc.username)}
                     className={`flex items-center justify-between rounded-lg border p-4 text-left transition-all ${
                       selectedUser === acc.username
-                        ? "border-blue-500 bg-slate-900 ring-2 ring-blue-500/20"
-                        : "border-slate-800 bg-slate-950 hover:bg-slate-900"
+                        ? "border-blue-500 bg-blue-500/5 ring-2 ring-blue-500/20"
+                        : theme === "dark"
+                        ? "border-slate-800 bg-slate-950 hover:bg-slate-900"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
                     }`}
                   >
                     <div>
-                      <p className="font-semibold text-white">{acc.label}</p>
-                      <p className="text-xs text-slate-500">Username: {acc.username}</p>
+                      <p className={`font-semibold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>{acc.label}</p>
+                      <p className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>Username: {acc.username}</p>
                     </div>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${acc.bg}`}>
                       {acc.role.replace("_", " ")}
@@ -182,25 +225,33 @@ export default function Home() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-300">Password</label>
+              <label className={`block text-sm font-medium ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>Password</label>
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-3 text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className={`w-full rounded-lg border px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+                  theme === "dark"
+                    ? "border-slate-800 bg-slate-950 text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-900"
+                }`}
               />
             </div>
 
             {errorMsg && (
-              <div className="rounded-lg border border-red-900 bg-red-950/50 p-4 text-sm text-red-400">
+              <div className={`rounded-lg border p-4 text-sm ${
+                theme === "dark"
+                  ? "border-red-900 bg-red-950/50 text-red-400"
+                  : "border-red-200 bg-red-50 text-red-800"
+              }`}>
                 {errorMsg}
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-gradient-to-r from-blue-500 to-emerald-500 py-3 text-center font-bold text-white shadow-lg shadow-blue-500/20 hover:from-blue-600 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-lg bg-gradient-to-r from-blue-500 to-emerald-500 py-3 text-center font-bold text-white shadow-lg shadow-blue-500/20 hover:from-blue-600 hover:to-emerald-600 focus:outline-none"
             >
               Sign In to MediBot
             </button>
@@ -251,23 +302,27 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100">
+    <div className={`flex h-screen transition-colors duration-250 ${theme === "dark" ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"}`}>
       {/* Sidebar */}
-      <aside className="flex w-80 flex-col border-r border-slate-800 bg-slate-950 p-6">
-        <div className="flex items-center gap-3 border-b border-slate-800 pb-6">
+      <aside className={`flex w-80 flex-col border-r p-6 transition-colors duration-250 ${
+        theme === "dark" ? "bg-slate-950 border-slate-800" : "bg-white border-slate-200"
+      }`}>
+        <div className={`flex items-center gap-3 border-b pb-6 ${theme === "dark" ? "border-slate-800" : "border-slate-200"}`}>
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center font-bold text-white text-lg">
             M
           </div>
           <div>
-            <h1 className="font-bold text-lg text-white tracking-tight">MediBot RAG</h1>
+            <h1 className={`font-bold text-lg tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>MediBot RAG</h1>
             <p className="text-xs text-slate-500">MediAssist Operations</p>
           </div>
         </div>
 
         {/* User profile */}
-        <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+        <div className={`mt-6 rounded-xl border p-4 ${
+          theme === "dark" ? "bg-slate-900/50 border-slate-800" : "bg-slate-100/50 border-slate-200"
+        }`}>
           <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Active Profile</p>
-          <p className="font-bold text-white mt-1">{userName}</p>
+          <p className={`font-bold mt-1 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>{userName}</p>
           <span className="inline-block mt-2 rounded-full bg-blue-900/40 border border-blue-800 text-blue-300 px-3 py-0.5 text-xs font-semibold uppercase tracking-wider">
             {role?.replace("_", " ")}
           </span>
@@ -284,15 +339,19 @@ export default function Home() {
                   key={col}
                   className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm transition-all ${
                     isAllowed
-                      ? "border-emerald-950 bg-emerald-950/20 text-slate-100"
-                      : "border-slate-900 bg-slate-950/40 text-slate-600"
+                      ? theme === "dark"
+                        ? "border-emerald-950 bg-emerald-950/20 text-slate-100"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : theme === "dark"
+                      ? "border-slate-900 bg-slate-950/40 text-slate-600"
+                      : "border-slate-200 bg-slate-100/40 text-slate-400"
                   }`}
                 >
                   <span className="font-medium">{COLLECTION_LABELS[col] || col}</span>
                   {isAllowed ? (
                     <span className="text-xs text-emerald-400 font-semibold bg-emerald-900/20 px-2 py-0.5 rounded-full border border-emerald-900/40">Open</span>
                   ) : (
-                    <span className="text-xs text-slate-600 font-semibold bg-slate-900/10 px-2 py-0.5 rounded-full border border-slate-900/30">Locked</span>
+                    <span className="text-xs text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">Locked</span>
                   )}
                 </li>
               );
@@ -303,24 +362,41 @@ export default function Home() {
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="mt-6 w-full rounded-lg border border-slate-800 bg-slate-950 py-3 text-center text-sm font-semibold text-slate-400 hover:bg-slate-900 hover:text-white transition-all"
+          className={`mt-6 w-full rounded-lg border py-3 text-center text-sm font-semibold transition-all ${
+            theme === "dark"
+              ? "border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-900 hover:text-white"
+              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          }`}
         >
           Logout
         </button>
       </aside>
 
       {/* Main Chat Panel */}
-      <main className="flex flex-1 flex-col bg-slate-950">
+      <main className="flex flex-1 flex-col">
         {/* Chat Header */}
-        <header className="flex h-16 items-center justify-between border-b border-slate-800 bg-slate-950 px-8 shadow-sm">
+        <header className={`flex h-16 items-center justify-between border-b px-8 shadow-sm ${
+          theme === "dark" ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-white"
+        }`}>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <p className="text-sm font-medium text-slate-300">Connected to local Qdrant & SQLite DB</p>
+            <p className={`text-sm font-medium ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>Connected to local Qdrant & SQLite DB</p>
           </div>
+          
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold border transition-all ${
+              theme === "dark"
+                ? "border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300"
+                : "border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700"
+            }`}
+          >
+            {theme === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode"}
+          </button>
         </header>
 
         {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-8 space-y-6">
+        <div className={`flex-1 overflow-y-auto p-8 space-y-6 ${theme === "dark" ? "bg-slate-950" : "bg-slate-50"}`}>
           {messages.map((msg, index) => {
             const isBot = msg.sender === "bot";
             const isRejection = isBot && msg.text.includes("Access Denied");
@@ -335,18 +411,22 @@ export default function Home() {
                     !isBot
                       ? "bg-blue-600 text-white rounded-br-none"
                       : isRejection
-                      ? "border border-red-950 bg-red-950/30 text-red-300 rounded-bl-none"
-                      : "border border-slate-800 bg-slate-900/60 text-slate-100 rounded-bl-none"
+                      ? "border border-red-900 bg-red-950/20 text-red-400 rounded-bl-none"
+                      : theme === "dark"
+                      ? "border border-slate-800 bg-slate-900/60 text-slate-100 rounded-bl-none"
+                      : "border border-slate-200 bg-white text-slate-800 rounded-bl-none"
                   }`}
                 >
                   {/* Message Header */}
-                  <div className="flex items-center justify-between gap-6 border-b border-slate-800 pb-2 mb-2 text-xs text-slate-500">
-                    <span className="font-semibold uppercase tracking-wider text-slate-400">
+                  <div className={`flex items-center justify-between gap-6 border-b pb-2 mb-2 text-xs ${
+                    theme === "dark" ? "border-slate-800 text-slate-500" : "border-slate-100 text-slate-400"
+                  }`}>
+                    <span className="font-semibold uppercase tracking-wider">
                       {isBot ? "MediBot" : "You"}
                     </span>
                     {isBot && msg.retrievalType && (
                       <span className={`rounded px-1.5 py-0.5 font-bold uppercase tracking-widest ${
-                        msg.retrievalType === "sql_rag" ? "bg-purple-900/40 text-purple-300 border border-purple-800" : "bg-blue-900/40 text-blue-300 border border-blue-800"
+                        msg.retrievalType === "sql_rag" ? "bg-purple-900/40 text-purple-300 border border-purple-850" : "bg-blue-900/40 text-blue-300 border border-blue-800"
                       }`}>
                         {msg.retrievalType === "sql_rag" ? "SQL RAG" : "Hybrid RAG"}
                       </span>
@@ -358,13 +438,13 @@ export default function Home() {
 
                   {/* Sources display */}
                   {isBot && msg.sources && msg.sources.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-slate-400">
-                      <p className="font-semibold text-slate-300 mb-1">Sources consulted:</p>
+                    <div className={`mt-4 pt-3 border-t text-xs ${theme === "dark" ? "border-slate-800 text-slate-400" : "border-slate-200 text-slate-500"}`}>
+                      <p className="font-semibold mb-1">Sources consulted:</p>
                       <ul className="list-disc pl-4 space-y-1">
                         {msg.sources.map((s, sIdx) => (
                           <li key={sIdx}>
-                            <span className="font-medium text-slate-200">{s.source_document}</span> (Section: {s.section_title}) 
-                            <span className="ml-2 inline-block rounded bg-slate-800 px-1 py-0.5 text-[10px] text-slate-400 uppercase">{s.collection}</span>
+                            <span className="font-medium">{s.source_document}</span> (Section: {s.section_title}) 
+                            <span className="ml-2 inline-block rounded bg-slate-200 px-1 py-0.5 text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-400 uppercase">{s.collection}</span>
                           </li>
                         ))}
                       </ul>
@@ -377,7 +457,9 @@ export default function Home() {
           
           {loading && (
             <div className="flex justify-start">
-              <div className="flex items-center gap-2 max-w-xs rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-4 text-slate-400 text-sm rounded-bl-none shadow-md">
+              <div className={`flex items-center gap-2 max-w-xs rounded-2xl border px-5 py-4 text-sm rounded-bl-none shadow-md ${
+                theme === "dark" ? "border-slate-800 bg-slate-900/60 text-slate-400" : "border-slate-200 bg-white text-slate-500"
+              }`}>
                 <svg className="animate-spin h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -390,13 +472,19 @@ export default function Home() {
         </div>
 
         {/* Sample prompts */}
-        <div className="px-8 py-3 bg-slate-950 border-t border-slate-900 flex flex-wrap gap-2 items-center">
+        <div className={`px-8 py-3 border-t flex flex-wrap gap-2 items-center ${
+          theme === "dark" ? "bg-slate-950 border-slate-900" : "bg-white border-slate-200"
+        }`}>
           <span className="text-xs text-slate-500 font-semibold mr-1 uppercase">Sample Prompts:</span>
           {getSamplePromptsForRole().map((prompt, idx) => (
             <button
               key={idx}
               onClick={() => handleSamplePrompt(prompt)}
-              className="text-xs border border-slate-800 bg-slate-900/40 text-slate-300 px-3 py-1.5 rounded-full hover:bg-slate-900 hover:border-slate-700 transition-all text-left max-w-sm truncate"
+              className={`text-xs border px-3 py-1.5 rounded-full transition-all text-left max-w-sm truncate ${
+                theme === "dark"
+                  ? "border-slate-800 bg-slate-900/40 text-slate-300 hover:bg-slate-900 hover:border-slate-700"
+                  : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+              }`}
             >
               {prompt}
             </button>
@@ -404,7 +492,7 @@ export default function Home() {
         </div>
 
         {/* Input Bar */}
-        <footer className="p-8 bg-slate-950 border-t border-slate-900">
+        <footer className={`p-8 border-t ${theme === "dark" ? "bg-slate-950 border-slate-900" : "bg-white border-slate-200"}`}>
           <div className="relative flex items-center">
             <input
               type="text"
@@ -412,7 +500,11 @@ export default function Home() {
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage(inputVal)}
-              className="w-full rounded-xl border border-slate-850 bg-slate-900 px-6 py-4 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/10 pr-20"
+              className={`w-full rounded-xl border px-6 py-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/10 pr-20 ${
+                theme === "dark"
+                  ? "border-slate-850 bg-slate-900 text-slate-100 placeholder-slate-500"
+                  : "border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400"
+              }`}
             />
             <button
               onClick={() => sendMessage(inputVal)}
