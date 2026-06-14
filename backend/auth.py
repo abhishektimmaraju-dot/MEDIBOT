@@ -29,7 +29,11 @@ ROLE_COLLECTIONS = {
 }
 
 def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
-    """Authenticates username and password against demo list."""
+    """
+    Authenticates username and password against demo list.
+    NOTE: In production, passwords must be securely hashed and verified (e.g. using bcrypt).
+    Plaintext verification is only for demo convenience.
+    """
     user = DEMO_USERS.get(username.lower())
     if user and user["password"] == password:
         return {

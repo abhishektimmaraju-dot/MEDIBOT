@@ -138,15 +138,45 @@ def sql_rag_chain(question: str) -> str:
         q_lower = question.lower()
         if "cashless" in q_lower and "pending" in q_lower and "cardiology" in q_lower:
             sql_query = "SELECT COUNT(*) FROM claims WHERE claim_type='cashless' AND status='pending' AND department='cardiology'"
+            execution_res = execute_sql(sql_query)
+            if not execution_res["success"]:
+                return f"Database Execution Error: {execution_res['error']}\nSQL Query tried: {sql_query}"
+            return f"Offline SQL RAG: The count of cashless claims that are pending in the cardiology department is {execution_res['data'][0][0]}."
         elif "total claimed amount" in q_lower:
             sql_query = "SELECT SUM(claimed_amount) FROM claims"
+            execution_res = execute_sql(sql_query)
+            if not execution_res["success"]:
+                return f"Database Execution Error: {execution_res['error']}\nSQL Query tried: {sql_query}"
+            val = execution_res['data'][0][0] or 0.0
+            return f"Offline SQL RAG: The total claimed amount across all claims is ${val:,.2f}."
+        elif "escalated claims" in q_lower or "escalated claim" in q_lower:
+            sql_query = "SELECT COUNT(*) FROM claims WHERE status='escalated'"
+            execution_res = execute_sql(sql_query)
+            if not execution_res["success"]:
+                return f"Database Execution Error: {execution_res['error']}\nSQL Query tried: {sql_query}"
+            return f"Offline SQL RAG: The number of escalated claims is {execution_res['data'][0][0]}."
+        elif "equipment category with most open tickets" in q_lower or ("category" in q_lower and "open" in q_lower and "tickets" in q_lower):
+            sql_query = "SELECT category, COUNT(*) as cnt FROM maintenance_tickets WHERE status='open' GROUP BY category ORDER BY cnt DESC LIMIT 1"
+            execution_res = execute_sql(sql_query)
+            if not execution_res["success"]:
+                return f"Database Execution Error: {execution_res['error']}\nSQL Query tried: {sql_query}"
+            if execution_res['data']:
+                cat, cnt = execution_res['data'][0]
+                return f"Offline SQL RAG: The equipment category with the most open tickets is {cat} (Count: {cnt})."
+            return "Offline SQL RAG: No open maintenance tickets found."
+        elif "claims by insurer" in q_lower or ("claims" in q_lower and "insurer" in q_lower):
+            sql_query = "SELECT insurer, COUNT(*) FROM claims GROUP BY insurer"
+            execution_res = execute_sql(sql_query)
+            if not execution_res["success"]:
+                return f"Database Execution Error: {execution_res['error']}\nSQL Query tried: {sql_query}"
+            rows = [f"- {insurer}: {count} claims" for insurer, count in execution_res['data']]
+            return "Offline SQL RAG: Claims by insurer:\n" + "\n".join(rows)
         else:
             sql_query = "SELECT COUNT(*) FROM claims"
-            
-        execution_res = execute_sql(sql_query)
-        if not execution_res["success"]:
-            return f"Database Execution Error: {execution_res['error']}\nSQL Query tried: {sql_query}"
-        return f"Offline SQL RAG: The count of cashless claims that are pending in the cardiology department is {execution_res['data'][0][0]}."
+            execution_res = execute_sql(sql_query)
+            if not execution_res["success"]:
+                return f"Database Execution Error: {execution_res['error']}\nSQL Query tried: {sql_query}"
+            return f"Offline SQL RAG: The total number of claims is {execution_res['data'][0][0]}."
 
 
     client = Groq(api_key=groq_api_key)

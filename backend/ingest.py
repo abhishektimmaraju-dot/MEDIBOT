@@ -40,19 +40,23 @@ ACCESS_MATRIX = {
 
 
 def get_chunk_type(doc_chunk) -> str:
-    """Detects chunk type from doc_items types."""
+    """
+    Detects chunk type from doc_items types.
+    Checks all items in the chunk to flag tables, code blocks, or headings.
+    """
     try:
         if not doc_chunk.meta.doc_items or len(doc_chunk.meta.doc_items) == 0:
             return "text"
-        first_item = doc_chunk.meta.doc_items[0]
-        type_name = type(first_item).__name__.lower()
         
-        if "table" in type_name:
+        # Check all items in the chunk for table or other structural components
+        types = [type(item).__name__.lower() for item in doc_chunk.meta.doc_items]
+        
+        if any("table" in t for t in types):
             return "table"
-        elif "heading" in type_name or "section" in type_name or "header" in type_name:
-            return "heading"
-        elif "code" in type_name:
+        elif any("code" in t for t in types):
             return "code"
+        elif any("heading" in t or "section" in t or "header" in t for t in types):
+            return "heading"
     except Exception:
         pass
     return "text"
@@ -91,10 +95,11 @@ def main():
                 
     print(f"Found {len(documents)} documents to ingest.")
     
-    # Configure Docling (disable OCR to avoid environment issues)
+    # Configure Docling (disable OCR to avoid environment issues, enable PDF/MD)
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_ocr = False
     converter = DocumentConverter(
+        allowed_formats=[InputFormat.PDF, InputFormat.MD],
         format_options={
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
         }
@@ -178,6 +183,14 @@ def main():
     )
     print(f"Created Qdrant collection '{COLLECTION_NAME}' configured for hybrid search (dense + sparse).")
 
+    # Create keyword payload index on access_roles for rapid, secure metadata filtering
+    qdrant_client.create_payload_index(
+        collection_name=COLLECTION_NAME,
+        field_name="access_roles",
+        field_schema="keyword"
+    )
+    print("Created keyword payload index on 'access_roles'.")
+
     # 6. Upload Points to Qdrant
     print("Uploading indexed points to Qdrant...")
     points = []
@@ -221,6 +234,29 @@ def main():
         )
         print(f"Uploaded batch {offset // batch_size + 1}/{(len(points) - 1) // batch_size + 1}...")
 
+    # 7. Print stats for validation
+    print("\n==================================================")
+    print("Ingestion Validation Summary:")
+    print(f"Total chunks indexed: {len(all_chunks_raw)}")
+    
+    # Print count per collection
+    collections_counts = {}
+    for chunk in all_chunks_raw:
+        c = chunk["collection"]
+        collections_counts[c] = collections_counts.get(c, 0) + 1
+    print("Chunks per collection:")
+    for c, count in collections_counts.items():
+        print(f"  - {c}: {count}")
+        
+    # Print count per chunk type
+    type_counts = {}
+    for chunk in all_chunks_raw:
+        t = chunk["chunk_type"]
+        type_counts[t] = type_counts.get(t, 0) + 1
+    print("Chunks per chunk type:")
+    for t, count in type_counts.items():
+        print(f"  - {t}: {count}")
+    print("==================================================")
     print("Document ingestion and indexing completed successfully!")
 
 if __name__ == "__main__":

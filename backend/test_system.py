@@ -153,5 +153,60 @@ class TestMediBotSystem(unittest.TestCase):
         self.assertIn("do not have permission", res_data["answer"].lower())
         self.assertEqual(res_data["sources"], [])
 
+    def test_direct_retrieval_rbac_filter(self):
+        """
+        Directly assert that a nurse-scoped query returns ZERO billing chunks 
+        at the retrieve_hybrid level (retrieval-layer security proof).
+        """
+        from main import rag
+        
+        # Nurse queries billing content
+        chunks = rag.retrieve_hybrid(
+            query="cashless Star Health pre-auth SLA claims",
+            role="nurse",
+            limit=10
+        )
+        
+        # All retrieved chunks must NOT be from billing, clinical, or equipment
+        for chunk in chunks:
+            collection = chunk.get("collection")
+            self.assertIn(
+                collection, 
+                ["nursing", "general"],
+                f"Security Leak: Nurse retrieved chunk from unauthorized collection '{collection}'!"
+            )
+
+        # Technician queries clinical content
+        chunks = rag.retrieve_hybrid(
+            query="What is the clinical protocol for cardiac arrest NSTEMI?",
+            role="technician",
+            limit=10
+        )
+        for chunk in chunks:
+            collection = chunk.get("collection")
+            self.assertIn(
+                collection, 
+                ["equipment", "general"],
+                f"Security Leak: Technician retrieved chunk from unauthorized collection '{collection}'!"
+            )
+
+    def test_out_of_scope_query(self):
+        """
+        Verify that a completely out-of-scope question returns a neutral
+        'I could not find relevant information' message rather than 'Access Denied'.
+        """
+        token = self._get_token("nurse.priya")
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        response = self.client.post("/chat", json={
+            "question": "What is the capital of France?"
+        }, headers=headers)
+        
+        self.assertEqual(response.status_code, 200)
+        res_data = response.json()
+        self.assertNotIn("Access Denied", res_data["answer"])
+        self.assertIn("could not find relevant information", res_data["answer"].lower())
+        self.assertEqual(res_data["sources"], [])
+
 if __name__ == "__main__":
     unittest.main()

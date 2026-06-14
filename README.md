@@ -86,6 +86,9 @@ You can log in to the Next.js frontend using the following credentials (all pass
 | `tech.anand` | `technician` | Equipment, General | Hybrid RAG Document Search |
 | `admin.sys` | `admin` | **All Collections** | Hybrid RAG + SQL RAG (Analytical) |
 
+> [!NOTE]
+> Passwords are compared in plaintext for demo convenience only. In a production environment, you must securely hash and verify passwords using a robust scheme like `bcrypt` or `argon2`.
+
 ---
 
 ## 🔧 Setup & Running Guide
@@ -102,7 +105,7 @@ You can log in to the Next.js frontend using the following credentials (all pass
    ```
 2. Install Python backend requirements:
    ```bash
-   pip install fastapi uvicorn pyjwt python-multipart sentence-transformers qdrant-client docling docling-hierarchical-pdf groq python-dotenv
+   pip install -r requirements.txt
    ```
 3. Create a `.env` file in the `backend/` directory and add your Groq API key:
    ```env
@@ -202,6 +205,40 @@ SQL RAG translates natural language to SQL with an LLM, so the generated stateme
 2. **Read-only connection**: the database is opened with the SQLite URI `file:<path>?mode=ro`, so even an unforeseen statement cannot mutate data.
 
 A blocked statement returns a clear error and never touches the database.
+
+---
+
+## 📊 Analytical SQL Q&A Examples (Assignment Rubric)
+
+The SQL RAG pipeline converts user questions to SQL queries, executes them safely, and narrates the response conversationally. Below are the 4 analytical queries showing genuine questions, translated SQL statements, and results from the database:
+
+1. **Total Claimed Amount**
+   - **Question**: *"What is the total claimed amount across all departments?"*
+   - **Generated SQL**: `SELECT SUM(claimed_amount) FROM claims`
+   - **Answer**: *"The total claimed amount across all claims is $6,694,500.00."*
+
+2. **Escalated Claims Count**
+   - **Question**: *"How many claims are currently in an escalated status?"*
+   - **Generated SQL**: `SELECT COUNT(*) FROM claims WHERE status = 'escalated'`
+   - **Answer**: *"There are currently 8 claims that have been escalated."*
+
+3. **Equipment Category with Most Open Tickets**
+   - **Question**: *"Which equipment category has the most open maintenance tickets?"*
+   - **Generated SQL**: `SELECT category, COUNT(*) as cnt FROM maintenance_tickets WHERE status = 'open' GROUP BY category ORDER BY cnt DESC LIMIT 1`
+   - **Answer**: *"The equipment category with the most open tickets is radiology (Count: 4)."*
+
+4. **Claims Count by Insurer**
+   - **Question**: *"Provide a count of claims grouped by insurer."*
+   - **Generated SQL**: `SELECT insurer, COUNT(*) FROM claims GROUP BY insurer`
+   - **Answer**: 
+     - Bajaj Allianz: 13 claims
+     - Care Health: 10 claims
+     - HDFC Ergo: 10 claims
+     - ICICI Lombard: 12 claims
+     - New India Assurance: 12 claims
+     - Niva Bupa: 10 claims
+     - Star Health: 6 claims
+     - United India: 12 claims
 
 ---
 

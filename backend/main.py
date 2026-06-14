@@ -172,6 +172,29 @@ def classify_query(query: str) -> str:
             return "analytical"
         return "document"
 
+def is_query_restricted_for_role(role: str, query: str) -> bool:
+    """Checks if the query targets collections that are restricted for the user's role."""
+    if role == "admin":
+        return False
+        
+    query_lower = query.lower()
+    allowed = ROLE_COLLECTIONS.get(role, [])
+    
+    # Define keywords for each collection
+    collection_keywords = {
+        "clinical": ["clinical", "treatment", "protocol", "drug", "dosage", "medical", "guideline", "patient care", "nstemi", "cardiac", "heart", "physician", "doctor", "diagnosis", "therapy"],
+        "nursing": ["nurse", "nursing", "icu", "ward", "infection control", "hygiene", "shift", "patient hygiene", "handwash", "dressings", "wound"],
+        "billing": ["billing", "claim", "reimbursement", "cashless", "insurance", "insurer", "invoice", "finance", "sla", "copay", "co-pay", "policy limit", "pre-auth", "pre-authorisation", "pre-authorization", "star health", "hdfc", "bajaj", "new india"],
+        "equipment": ["equipment", "manual", "calibration", "infusion pump", "defibrillator", "radiology", "ventilator", "maintenance", "sensor", "battery", "pump", "fault code", "calibration steps"]
+    }
+    
+    for coll, keywords in collection_keywords.items():
+        if coll not in allowed:
+            if any(kw in query_lower for kw in keywords):
+                return True
+                
+    return False
+
 def get_rbac_rejection_message(role: str, query: str) -> str:
     """Returns a tailored rejection message listing what the role can and cannot access."""
     allowed = ROLE_COLLECTIONS.get(role, [])
@@ -257,7 +280,10 @@ def chat(req: ChatRequest, active_role: str = Depends(get_role_from_token)):
         # This is our clean retrieval-layer access refusal signal.
         if not retrieved_chunks:
             print(f"[Chat Route] RBAC or retrieval block: zero chunks returned for role '{active_role}'.")
-            answer_msg = get_rbac_rejection_message(active_role, question)
+            if is_query_restricted_for_role(active_role, question):
+                answer_msg = get_rbac_rejection_message(active_role, question)
+            else:
+                answer_msg = "I could not find relevant information in the provided documents to answer your question."
             return {
                 "answer": answer_msg,
                 "sources": [],
@@ -273,7 +299,10 @@ def chat(req: ChatRequest, active_role: str = Depends(get_role_from_token)):
         # do not actually answer the user's specific query. We treat this as an out-of-scope refusal.
         if not reranked_chunks or reranked_chunks[0]["rerank_score"] < -6.0:
             print(f"[Chat Route] Low confidence block: rank-1 score {reranked_chunks[0]['rerank_score'] if reranked_chunks else None} is below -6.0.")
-            answer_msg = get_rbac_rejection_message(active_role, question)
+            if is_query_restricted_for_role(active_role, question):
+                answer_msg = get_rbac_rejection_message(active_role, question)
+            else:
+                answer_msg = "I could not find relevant information in the provided documents to answer your question."
             return {
                 "answer": answer_msg,
                 "sources": [],
