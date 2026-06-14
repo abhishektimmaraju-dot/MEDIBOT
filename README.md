@@ -91,47 +91,75 @@ You can log in to the Next.js frontend using the following credentials (all pass
 
 ---
 
-## 🔧 Setup & Running Guide
+## 📋 Prerequisites
+- Python 3.10 or later
+- Node.js 18+ with npm
+- GROQ API Key (free at [console.groq.com](https://console.groq.com))
+- Git (for cloning)
 
-### Prerequisites
-- Python 3.10+
-- Node.js 18+
+---
 
-### Step 1: Install Python Dependencies & Ingest Data
-1. Navigate to the `backend/` folder and activate the virtual environment:
-   ```bash
-   cd backend
-   source ../../.venv/bin/activate
-   ```
-2. Install Python backend requirements:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Create a `.env` file in the `backend/` directory and add your Groq API key:
-   ```env
-   GROQ_API_KEY=your_groq_api_key_here
-   ```
-4. Run the document ingestion pipeline:
-   ```bash
-   python ingest.py
-   ```
+## 🚀 Quick Start
 
-### Step 2: Start the FastAPI Backend
-Start the backend server on port 8000:
+### 1. Clone the Repository
 ```bash
-uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+git clone https://github.com/abhishektimmaraju-dot/MEDIBOT.git
+cd MEDIBOT
+```
+*(If you do not have Git, click the green **"Code"** button on GitHub, select **"Download ZIP"**, extract it, and open your terminal inside the extracted `MEDIBOT` folder).*
+
+### 2. Prepare Environment
+```bash
+# Set up backend
+cd backend
+python -m venv .venv
+
+# Activate virtual environment
+# Windows (Command Prompt):
+.venv\Scripts\activate
+# Mac/Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Copy and configure .env
+cp .env.sample .env
+# Edit .env and add your GROQ_API_KEY
 ```
 
-### Step 3: Start the Next.js Frontend
-1. Navigate to the `frontend/` directory (from the project root):
-   ```bash
-   cd frontend
-   ```
-2. Start the development server on port 3000:
-   ```bash
-   npm run dev
-   ```
-3. Open your browser to `http://localhost:3000`.
+### 3. Ingest Documents
+```bash
+# Still in backend/ with .venv activated
+python ingest.py
+```
+This reads and parses the 12 medical PDF and markdown documents, indexing **343 chunks** inside the local Qdrant collection.
+
+### 4. Start Backend
+```bash
+# From backend/ directory
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+The FastAPI backend server will start on [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+### 5. Start Frontend (New Terminal Window)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+The Next.js frontend will start on [http://localhost:3000](http://localhost:3000)
+
+### 6. Access the Application
+Open [http://localhost:3000](http://localhost:3000) in your browser and login with demo credentials:
+
+| Role | Username | Password |
+|---|---|---|
+| 👨‍⚕️ Doctor | `dr.mehta` | `password` |
+| 👩‍⚕️ Nurse | `nurse.priya` | `password` |
+| 💼 Billing | `billing.ravi` | `password` |
+| 🔧 Technician | `tech.anand` | `password` |
+| 🔐 Admin | `admin.sys` | `password` |
 
 ---
 
