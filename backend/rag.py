@@ -7,8 +7,10 @@ from qdrant_client import QdrantClient, models
 from qdrant_client.models import Prefetch, Filter, FieldCondition, MatchValue
 from groq import Groq
 
-# Import BM25Vectorizer from ingest to keep vectorization consistent
-from ingest import BM25Vectorizer, QDRANT_PATH, COLLECTION_NAME, EMBEDDING_MODEL, BM25_MODEL_PATH
+from fastembed import SparseTextEmbedding
+
+# Import from ingest to keep vectorization consistent
+from ingest import QDRANT_PATH, COLLECTION_NAME, EMBEDDING_MODEL
 
 # Load environment variables
 load_dotenv()
@@ -25,13 +27,9 @@ class RAGPipeline:
         # Load CrossEncoder for reranking
         self.reranker_model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
         
-        # Load BM25 vectorizer from saved state
-        if os.path.exists(BM25_MODEL_PATH):
-            self.bm25 = BM25Vectorizer.load(BM25_MODEL_PATH)
-            print("Loaded BM25 Vectorizer model successfully.")
-        else:
-            self.bm25 = None
-            print("WARNING: BM25 Vectorizer model file not found. Sparse search will not function.")
+        # Initialize FastEmbed Sparse model
+        print("Loading FastEmbed SparseTextEmbedding model...")
+        self.sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
             
         # Initialize Groq client
         self.groq_api_key = os.getenv("GROQ_API_KEY")
@@ -50,13 +48,15 @@ class RAGPipeline:
         Enforces user role restrictions at the database level so that unauthorized chunks 
         are completely hidden from retrieval.
         """
-        if not self.bm25:
-            print("ERROR: BM25 model not loaded. Cannot perform hybrid search.")
-            return []
-
         # 1. Encode query (dense + sparse)
         query_dense = self.dense_model.encode(query).tolist()
-        query_sparse = self.bm25.transform(query)
+        
+        # Generate FastEmbed sparse vector
+        query_sparse_emb = list(self.sparse_model.query_embed(query))[0]
+        query_sparse = models.SparseVector(
+            indices=query_sparse_emb.indices.tolist(),
+            values=query_sparse_emb.values.tolist()
+        )
         
         # 2. Build RBAC metadata filter
         # Restricted chunks must carry access roles. If user's role is in access_roles, allow retrieval.

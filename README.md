@@ -213,5 +213,5 @@ To deliver a lightweight, high-performance, and fully observable RAG pipeline, w
    By avoiding LangChain's chains and wrappers (e.g., `QdrantVectorStore`, `create_sql_query_chain`), we maintained 100% control over the query compilation, fusion layers, and prompt structures. This keeps the application dependency tree minimal, accelerates server startup, and simplifies debugging.
 2. **Docling OCR Disabling**:
    We disabled Docling's OCR feature (`PdfPipelineOptions.do_ocr = False`) because `rapidocr` has library file conflicts in the python 3.14.6 environment. This is safe because all provided PDF documents have selectable, embedded text.
-3. **Custom BM25 Vectorizer**:
-   Instead of installing massive libraries for sparse keyword generation (like fastembed Splade), we built a lightweight vocabulary-based BM25 vectorizer. It calculates IDF and document lengths over all ingested chunks and transforms search queries into Qdrant sparse vectors during query time, ensuring 100% offline accuracy.
+3. **FastEmbed Sparse Retrieval**:
+   We use the `fastembed` library's `SparseTextEmbedding` model (`Qdrant/bm25`) for native sparse vector generation. This provides pre-trained robust vocabulary mappings, handles synonyms and spelling variations, and connects cleanly with Qdrant's sparse indexes without requiring a manually compiled or serialized vocabulary state file.

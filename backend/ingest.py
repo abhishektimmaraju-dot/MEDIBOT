@@ -1,7 +1,5 @@
 import os
 import re
-import json
-import math
 from typing import List, Dict, Any
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -10,6 +8,7 @@ from docling_core.transforms.chunker import HierarchicalChunker
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, SparseVectorParams, SparseIndexParams, PointStruct
+from fastembed import SparseTextEmbedding
 
 # Configuration
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,7 +16,6 @@ DATA_DIR = os.path.join(SCRIPT_DIR, "mediassist_data")
 QDRANT_PATH = os.path.join(SCRIPT_DIR, "mediassist_data", "qdrant_db")
 COLLECTION_NAME = "medibot"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-BM25_MODEL_PATH = os.path.join(SCRIPT_DIR, "mediassist_data", "bm25_model.json")
 
 
 # Access Matrix definition
@@ -39,118 +37,7 @@ ACCESS_MATRIX = {
     }
 }
 
-class BM25Vectorizer:
-    """
-    Custom Implementation of Best Match 25 (BM25) term weighting for sparse vector retrieval.
-    
-    This vectorizer calculates term frequencies, document frequencies, and inverse 
-    document frequencies (IDF) locally over the parsed chunk corpus. It represents 
-    each chunk as a sparse vector of keyword weights, which is compatible with Qdrant.
-    
-    Using BM25 alongside dense vector search allows the system to support hybrid search, 
-    combining semantic understanding with exact keyword matches for specific drug codes, 
-    medical terms, or equipment model numbers.
-    """
-    def __init__(self, k1: float = 1.5, b: float = 0.75):
-        self.k1 = k1
-        self.b = b
-        self.vocab = {}  # word -> index
-        self.idf = {}    # word_index -> idf
-        self.avg_doc_len = 0.0
-        self.doc_count = 0
 
-    def _tokenize(self, text: str) -> List[str]:
-        # Simple word tokenization, removing punctuation and lowercasing
-        return re.findall(r"\w+", text.lower())
-
-    def fit(self, corpus: List[str]):
-        self.doc_count = len(corpus)
-        if self.doc_count == 0:
-            return
-
-        doc_lengths = []
-        doc_term_freqs = []  # list of dicts: word_index -> freq
-        word_doc_counts = {} # word -> count of docs containing it
-
-        for doc in corpus:
-            tokens = self._tokenize(doc)
-            doc_lengths.append(len(tokens))
-            
-            tf = {}
-            for token in tokens:
-                if token not in self.vocab:
-                    self.vocab[token] = len(self.vocab)
-                w_idx = self.vocab[token]
-                tf[w_idx] = tf.get(w_idx, 0) + 1
-            
-            doc_term_freqs.append(tf)
-            for w_idx in tf.keys():
-                word_doc_counts[w_idx] = word_doc_counts.get(w_idx, 0) + 1
-
-        self.avg_doc_len = sum(doc_lengths) / self.doc_count
-
-        # Compute IDF for each word index
-        for w_idx, count in word_doc_counts.items():
-            # BM25 IDF formulation
-            self.idf[w_idx] = math.log((self.doc_count - count + 0.5) / (count + 0.5) + 1.0)
-
-    def transform(self, text: str, doc_len: int = None) -> Dict[str, Any]:
-        """
-        Converts text into Qdrant SparseVector compatible dict format:
-        { "indices": [int, ...], "values": [float, ...] }
-        """
-        tokens = self._tokenize(text)
-        if not doc_len:
-            doc_len = len(tokens)
-
-        tf = {}
-        for token in tokens:
-            if token in self.vocab:
-                w_idx = self.vocab[token]
-                tf[w_idx] = tf.get(w_idx, 0) + 1
-
-        indices = []
-        values = []
-        for w_idx, freq in tf.items():
-            idf_val = self.idf.get(w_idx, 0.0)
-            # BM25 term weight
-            numerator = freq * (self.k1 + 1)
-            denominator = freq + self.k1 * (1 - self.b + self.b * (doc_len / (self.avg_doc_len or 1.0)))
-            weight = idf_val * (numerator / denominator)
-            
-            if weight > 0.0:
-                indices.append(w_idx)
-                values.append(weight)
-
-        # Qdrant client expects sorted indices for efficiency
-        sorted_pairs = sorted(zip(indices, values))
-        if sorted_pairs:
-            indices, values = zip(*sorted_pairs)
-            return {"indices": list(indices), "values": list(values)}
-        return {"indices": [], "values": []}
-
-    def save(self, filepath: str):
-        data = {
-            "k1": self.k1,
-            "b": self.b,
-            "vocab": self.vocab,
-            "idf": {str(k): v for k, v in self.idf.items()},
-            "avg_doc_len": self.avg_doc_len,
-            "doc_count": self.doc_count
-        }
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f)
-
-    @classmethod
-    def load(cls, filepath: str):
-        with open(filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        vectorizer = cls(k1=data["k1"], b=data["b"])
-        vectorizer.vocab = data["vocab"]
-        vectorizer.idf = {int(k): v for k, v in data["idf"].items()}
-        vectorizer.avg_doc_len = data["avg_doc_len"]
-        vectorizer.doc_count = data["doc_count"]
-        return vectorizer
 
 def get_chunk_type(doc_chunk) -> str:
     """Detects chunk type from doc_items types."""
@@ -253,17 +140,15 @@ def main():
         print("No chunks to index.")
         return
 
-    # 3. Fit BM25 Model on the raw chunk text corpus
-    print("Fitting BM25 vectorizer...")
-    bm25 = BM25Vectorizer()
-    bm25.fit([c["chunk_text"] for c in all_chunks_raw])
-    bm25.save(BM25_MODEL_PATH)
-    print(f"BM25 vocabulary size: {len(bm25.vocab)}. Saved model to {BM25_MODEL_PATH}")
+    # 3. Sparse Embeddings Generation using FastEmbed
+    print("Generating sparse embeddings using FastEmbed SparseTextEmbedding...")
+    sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
+    chunk_texts = [c["chunk_text"] for c in all_chunks_raw]
+    sparse_embeddings_raw = list(sparse_model.embed(chunk_texts))
 
     # 4. Dense Embeddings Generation
     print(f"Generating dense embeddings using model '{EMBEDDING_MODEL}'...")
     embedder = SentenceTransformer(EMBEDDING_MODEL)
-    chunk_texts = [c["chunk_text"] for c in all_chunks_raw]
     dense_vectors = embedder.encode(chunk_texts, show_progress_bar=True)
     
     # 5. Initialize Qdrant Collection
@@ -298,8 +183,13 @@ def main():
     points = []
     for i, chunk in enumerate(all_chunks_raw):
         dense_vec = dense_vectors[i].tolist()
-        # Generate BM25 sparse vector
-        sparse_vec = bm25.transform(chunk["chunk_text"])
+        
+        # Extract sparse vectors
+        sparse_emb = sparse_embeddings_raw[i]
+        sparse_vec = {
+            "indices": sparse_emb.indices.tolist(),
+            "values": sparse_emb.values.tolist()
+        }
         
         points.append(
             PointStruct(
