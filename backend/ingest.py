@@ -7,7 +7,6 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.transforms.chunker import HierarchicalChunker
-from hierarchical.postprocessor import ResultPostprocessor
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, SparseVectorParams, SparseIndexParams, PointStruct
@@ -41,6 +40,17 @@ ACCESS_MATRIX = {
 }
 
 class BM25Vectorizer:
+    """
+    Custom Implementation of Best Match 25 (BM25) term weighting for sparse vector retrieval.
+    
+    This vectorizer calculates term frequencies, document frequencies, and inverse 
+    document frequencies (IDF) locally over the parsed chunk corpus. It represents 
+    each chunk as a sparse vector of keyword weights, which is compatible with Qdrant.
+    
+    Using BM25 alongside dense vector search allows the system to support hybrid search, 
+    combining semantic understanding with exact keyword matches for specific drug codes, 
+    medical terms, or equipment model numbers.
+    """
     def __init__(self, k1: float = 1.5, b: float = 0.75):
         self.k1 = k1
         self.b = b
@@ -162,6 +172,17 @@ def get_chunk_type(doc_chunk) -> str:
 
 
 def main():
+    """
+    Main document ingestion and indexing pipeline.
+    
+    Workflow:
+    1. Scan `mediassist_data/` for PDFs and Markdown documents.
+    2. Group files into domain collections and map roles access lists.
+    3. Parse documents using Docling (disabling OCR) and generate layout-aware chunks.
+    4. Fit the custom BM25 vectorizer over the chunk text corpus.
+    5. Encode chunks using a SentenceTransformer dense embedding model.
+    6. Index both dense and sparse vectors in a local Qdrant collection.
+    """
     print("Initializing document ingestion pipeline...")
     
     # 1. Scanning directories for documents
@@ -199,8 +220,6 @@ def main():
         print(f"Parsing: {doc_info['filename']} in collection: {doc_info['collection']}...")
         try:
             result = converter.convert(doc_info["path"])
-            if doc_info["filename"].lower().endswith(".pdf"):
-                ResultPostprocessor(result).process()
             doc_obj = result.document
 
             

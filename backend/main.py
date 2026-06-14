@@ -15,6 +15,8 @@ load_dotenv()
 app = FastAPI(title="MediBot Backend API", version="1.0.0")
 
 # Enable CORS for Next.js frontend calls
+# NOTE: allow_origins=["*"] is configured for demo/local development purposes only.
+# For production environments, this must be restricted to the exact authorized domains.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,7 +40,6 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str
-    role: Optional[str] = None  # Can be passed in body or extracted from token
     history: Optional[List[ChatMessage]] = None
 
 def contextualize_question(question: str, history: Optional[List[ChatMessage]]) -> str:
@@ -215,10 +216,6 @@ def chat(req: ChatRequest, active_role: str = Depends(get_role_from_token)):
     Main chat router. Classifies query and forwards to SQL RAG or Document Hybrid RAG
     with strict role-based access filtering.
     """
-    # Overwrite token role if role is explicitly passed in request body (for testing convenience)
-    if req.role:
-        active_role = req.role
-
     raw_question = req.question
     question = contextualize_question(raw_question, req.history)
 
@@ -254,12 +251,12 @@ def chat(req: ChatRequest, active_role: str = Depends(get_role_from_token)):
         # Retrieve candidates (applies RBAC filter at vector DB layer)
         retrieved_chunks = rag.retrieve_hybrid(question, active_role, limit=10)
         
-        # Rerank candidates (narrow top-10 to top-3)
-        reranked_chunks = rag.rerank(question, retrieved_chunks, top_k=3)
-        
-        # Check if chunks are empty or if the top relevance score is extremely low (meaning no relevant allowed documents exist)
-        if not reranked_chunks or reranked_chunks[0]["rerank_score"] < -6.0:
-            # Check if user asked about restricted topics
+        # Primary Security Guardrail: If Qdrant returns 0 chunks, it means either:
+        # 1. No semantically/lexically related chunks exist at all.
+        # 2. The metadata filter (access_roles CONTAINS role) excluded all potential matches.
+        # This is our clean retrieval-layer access refusal signal.
+        if not retrieved_chunks:
+            print(f"[Chat Route] RBAC or retrieval block: zero chunks returned for role '{active_role}'.")
             answer_msg = get_rbac_rejection_message(active_role, question)
             return {
                 "answer": answer_msg,
@@ -268,6 +265,21 @@ def chat(req: ChatRequest, active_role: str = Depends(get_role_from_token)):
                 "role": active_role
             }
 
+        # Rerank candidates (narrow top-10 to top-3)
+        reranked_chunks = rag.rerank(question, retrieved_chunks, top_k=3)
+        
+        # Secondary Confidence Guardrail: The Cross-Encoder scores joint query-chunk relevance.
+        # A score below -6.0 is empirically extremely low, indicating the matched general-scope documents 
+        # do not actually answer the user's specific query. We treat this as an out-of-scope refusal.
+        if not reranked_chunks or reranked_chunks[0]["rerank_score"] < -6.0:
+            print(f"[Chat Route] Low confidence block: rank-1 score {reranked_chunks[0]['rerank_score'] if reranked_chunks else None} is below -6.0.")
+            answer_msg = get_rbac_rejection_message(active_role, question)
+            return {
+                "answer": answer_msg,
+                "sources": [],
+                "retrieval_type": "hybrid_rag",
+                "role": active_role
+            }
             
         # Generate LLM answer using context
         print("[Chat Route] Invoking LLM for response generation...")

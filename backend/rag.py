@@ -44,8 +44,11 @@ class RAGPipeline:
 
     def retrieve_hybrid(self, query: str, role: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
-        Retrieves context documents matching the query using dense + sparse hybrid RRF search
-        and applying role-based access filtering.
+        Retrieves candidate document chunks using Qdrant's Reciprocal Rank Fusion (RRF) 
+        over dense and sparse vectors, applying strict role-based access filtering.
+        
+        Enforces user role restrictions at the database level so that unauthorized chunks 
+        are completely hidden from retrieval.
         """
         if not self.bm25:
             print("ERROR: BM25 model not loaded. Cannot perform hybrid search.")
@@ -91,7 +94,6 @@ class RAGPipeline:
                 limit=limit
             )
 
-            
             # Map search results into a clean dictionary list
             chunks = []
             for hit in results.points:
@@ -112,8 +114,10 @@ class RAGPipeline:
 
     def rerank(self, query: str, chunks: List[Dict[str, Any]], top_k: int = 3) -> List[Dict[str, Any]]:
         """
-        Jointly scores query and retrieved candidate chunks using the cross-encoder,
-        returning the top K chunks.
+        Re-evaluates and scores the relevance of candidate chunks using a Cross-Encoder.
+        
+        Cross-Encoder joint scoring runs joint attention over query and document tokens, 
+        improving accuracy by promoting the most contextually relevant chunks to the top.
         """
         if not chunks:
             return []
@@ -140,7 +144,7 @@ class RAGPipeline:
         """
         Takes contextual chunks and query, prompts Groq LLM, and formats response.
         """
-        # Format sources
+        # Format sources (deduplicated)
         sources = []
         seen_sources = set()
         for c in context_chunks:
@@ -159,7 +163,6 @@ class RAGPipeline:
                 "sources": sources
             }
 
-            
         if not context_chunks:
             return {
                 "answer": "I do not have access to any documents that could answer your question based on your role, or no matching documents were found.",
@@ -197,19 +200,6 @@ class RAGPipeline:
             )
             answer = completion.choices[0].message.content
             
-            # Format sources
-            sources = []
-            seen_sources = set()
-            for c in context_chunks:
-                source_key = (c["source_document"], c["section_title"], c["collection"])
-                if source_key not in seen_sources:
-                    seen_sources.add(source_key)
-                    sources.append({
-                        "source_document": c["source_document"],
-                        "section_title": c["section_title"],
-                        "collection": c["collection"]
-                    })
-                    
             return {
                 "answer": answer,
                 "sources": sources

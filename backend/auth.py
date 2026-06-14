@@ -1,9 +1,14 @@
+import os
 import jwt
 import datetime
 from typing import Dict, Any, Optional
+from dotenv import load_dotenv
 
-# Secret key to sign JWT tokens (for demo purposes, keeping it static)
-JWT_SECRET = "mediassist-super-secret-key-12345!"
+# Load env variables
+load_dotenv()
+
+# Secret key to sign JWT tokens
+JWT_SECRET = os.getenv("JWT_SECRET", "mediassist-super-secret-key-12345!")
 JWT_ALGORITHM = "HS256"
 
 # Demo user accounts and their roles

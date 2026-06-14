@@ -10,8 +10,8 @@ __pycache__/
 *$py.class
 
 # Local Database & Models
-mediassist_data/qdrant_db/
-mediassist_data/bm25_model.json
+**/mediassist_data/qdrant_db/
+**/mediassist_data/bm25_model.json
 
 # Environment variables
 .env
