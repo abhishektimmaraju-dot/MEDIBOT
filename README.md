@@ -101,6 +101,12 @@ You can log in to the Next.js frontend using the following credentials (all pass
 
 ## 🚀 Quick Start
 
+> [!IMPORTANT]
+> **Essential Steps for Fresh Runs:**
+> 1. **Groq API Key Required**: You need a free Groq API key from [console.groq.com](https://console.groq.com). Add this key to your `backend/.env` file. Without it, the application runs in rule-based offline fallback mode.
+> 2. **Must Run Ingest Script First**: The Qdrant vector database folder is gitignored. You **must** run `python ingest.py` (Step 3 below) to parse and build the database locally *before* starting the backend server.
+> 3. **First-Run Downloads**: The ingestion script downloads the Sentence-Transformer and FastEmbed models, and Docling downloads parsing weights on first execution. This step requires an active internet connection and will take a few minutes to complete initially.
+
 ### 1. Clone the Repository
 ```bash
 git clone https://github.com/abhishektimmaraju-dot/MEDIBOT.git
@@ -118,7 +124,7 @@ python -m venv .venv
 # Windows (Command Prompt):
 .venv\Scripts\activate
 # Mac/Linux:
-source venv/bin/activate
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
