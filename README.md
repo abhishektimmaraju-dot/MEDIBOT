@@ -87,7 +87,7 @@ You can log in to the Next.js frontend using the following credentials (all pass
 | `admin.sys` | `admin` | **All Collections** | Hybrid RAG + SQL RAG (Analytical) |
 
 > [!NOTE]
-> Passwords are compared in plaintext for demo convenience only. In a production environment, you must securely hash and verify passwords using a robust scheme like `bcrypt` or `argon2`.
+> Passwords are compared in plaintext for demo convenience only. 
 
 ---
 
