@@ -70,7 +70,7 @@ def main():
     1. Scan `mediassist_data/` for PDFs and Markdown documents.
     2. Group files into domain collections and map roles access lists.
     3. Parse documents using Docling (disabling OCR) and generate layout-aware chunks.
-    4. Fit the custom BM25 vectorizer over the chunk text corpus.
+    4. Generate sparse BM25 embeddings via FastEmbed.
     5. Encode chunks using a SentenceTransformer dense embedding model.
     6. Index both dense and sparse vectors in a local Qdrant collection.
     """
