@@ -207,11 +207,10 @@ A blocked statement returns a clear error and never touches the database.
 
 ## 💡 Tool & Ingestion Substitutions (No-LangChain Architectural Decision)
 
-To deliver a lightweight, high-performance, and fully observable RAG pipeline, we made the deliberate decision to build our core components directly over native clients rather than utilizing heavy frameworks like LangChain:
+To deliver a lightweight, high-performance, and fully observable RAG pipeline, I made the deliberate decision to build our core components directly over native clients rather than utilizing langchain
 
-1. **No-LangChain Dependency**:
-   By avoiding LangChain's chains and wrappers (e.g., `QdrantVectorStore`, `create_sql_query_chain`), we maintained 100% control over the query compilation, fusion layers, and prompt structures. This keeps the application dependency tree minimal, accelerates server startup, and simplifies debugging.
-2. **Docling OCR Disabling**:
+
+1. **Docling OCR Disabling**:
    We disabled Docling's OCR feature (`PdfPipelineOptions.do_ocr = False`) because `rapidocr` has library file conflicts in the python 3.14.6 environment. This is safe because all provided PDF documents have selectable, embedded text.
-3. **FastEmbed Sparse Retrieval**:
+2. **FastEmbed Sparse Retrieval**:
    We use the `fastembed` library's `SparseTextEmbedding` model (`Qdrant/bm25`) for native sparse vector generation. This provides pre-trained robust vocabulary mappings, handles synonyms and spelling variations, and connects cleanly with Qdrant's sparse indexes without requiring a manually compiled or serialized vocabulary state file.
