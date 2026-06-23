@@ -4,31 +4,33 @@ MediBot is a production-grade, internal healthcare assistant built for **MediAss
 
 ---
 
-## 🏥 Architecture & Query Flow
+## 🏥 Architecture & Query Flow (v2.0)
 
-Here is the system architecture showing how queries flow through authentication, classification, and retrieval layers:
+Here is the system architecture showing how queries flow through authentication, the **embedding-based Semantic Router**, and retrieval layers:
+
+![MediBot v2.0 Architecture](architecture_v2.png)
 
 ```mermaid
 flowchart TD
     A["User Login (e.g. nurse.priya)"] --> B["JWT Token Issued (contains user role)"]
     B --> C["POST /chat (Question + Token)"]
-    C --> D{"Is query analytical/numbers?"}
+    C --> D{"Semantic Router (Embedding-based)\nCosine Similarity to Route Centroids"}
     
     %% Analytical Route
-    D -- "Yes" --> E{"Is Role billing_executive or admin?"}
-    E -- "Yes" --> F["SQL Translation & Execution (sql_rag.py)"]
-    F --> G["sqlite3 (mediassist.db)"]
+    D -- "analytical" --> E{"Is Role billing_executive or admin?"}
+    E -- "Yes" --> F["SQL RAG Pipeline (services/sql_rag_service.py)"]
+    F --> G["sqlite3 (read-only mode)"]
     G --> H["LLM Conversational Response"]
     E -- "No" --> I["Access Blocked Response"]
     
     %% Document Route
-    D -- "No" --> J["Qdrant Hybrid Search (rag.py)"]
-    J --> K["Apply metadata filter: access_roles CONTAINS role"]
-    K --> L["Qdrant Vector Database (rrf fusion)"]
-    L --> M["Reranking with Cross-Encoder"]
+    D -- "document" --> J["Hybrid Search (services/retrieval_service.py)"]
+    J --> K["RBAC Metadata Filter: access_roles CONTAINS role"]
+    K --> L["Qdrant Vector Database (RRF Fusion)"]
+    L --> M["Cross-Encoder Reranking"]
     M --> N{"Are retrieved chunks empty or irrelevant?"}
     N -- "Yes" --> O["Tailored RBAC Rejection Message"]
-    N -- "No" --> P["LLM Contextual Answer Generation"]
+    N -- "No" --> P["LLM Answer Generation (services/answer_service.py)"]
 
     style A fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1
     style D fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:#E65100
@@ -39,37 +41,59 @@ flowchart TD
     style P fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:#1B5E20
 ```
 
+### Semantic Router (v2.0)
+
+Queries are now classified using an **embedding-based semantic router** instead of an LLM call:
+
+1. At startup, example queries for each route ("analytical" vs. "document") are embedded and averaged into **route centroids**.
+2. At query time, the user's question is embedded and cosine similarity is computed against each centroid.
+3. The route with the highest similarity wins (~5ms, deterministic, zero API cost).
+4. If the margin is too narrow, a keyword-based fallback kicks in for safety.
+
 ---
 
 ## 📂 Project Folder Structure
 
-The project has been organized cleanly into `backend/` and `frontend/` directories:
+The backend follows a **layered package architecture** (adapters → services → API) for clean separation of concerns:
 
 ```
 MEDIBOT/
-├── backend/                       # Python API & Ingestion
-│   ├── mediassist_data/           # Document corpus & SQLite Database
-│   │   ├── billing/
-│   │   ├── clinical/
-│   │   ├── nursing/
-│   │   ├── equipment/
-│   │   ├── general/
-│   │   ├── db/
-│   │   │   └── mediassist.db      # SQLite Database
-│   │   └── qdrant_db/             # Local Qdrant Database
-│   ├── auth.py                    # JWT authentication
-│   ├── ingest.py                  # Document parsing and vector db indexing
-│   ├── main.py                    # FastAPI server
-│   ├── rag.py                     # Dense/Sparse vector retrieval & LLM generation
-│   ├── sql_rag.py                 # SQLite SQL generator chain
-│   └── test_system.py             # Automated unit tests
+├── backend/
+│   ├── config/
+│   │   └── settings.py            # Central configuration (paths, models, thresholds)
+│   ├── models/
+│   │   └── schemas.py             # Pydantic request/response schemas
+│   ├── utils/
+│   │   ├── logger.py              # Structured Python logging (replaces print)
+│   │   └── timing.py              # PipelineTimer for per-stage latency tracking
+│   ├── security/
+│   │   └── auth.py                # JWT authentication & user management
+│   ├── adapters/                  # Infrastructure layer
+│   │   ├── embedding_adapter.py   # Dense (MiniLM) + Sparse (FastEmbed) + CrossEncoder
+│   │   ├── qdrant_adapter.py      # Qdrant client + hybrid search + RBAC filter
+│   │   ├── llm_adapter.py         # Groq LLM client wrapper
+│   │   └── sql_adapter.py         # SQLite read-only connection + safety validation
+│   ├── services/                  # Business logic layer
+│   │   ├── semantic_router.py     # Embedding-based query classifier (NEW)
+│   │   ├── retrieval_service.py   # Hybrid retrieval + cross-encoder reranking
+│   │   ├── answer_service.py      # LLM answer generation + conversation context
+│   │   └── sql_rag_service.py     # NL → SQL → Execute → Format pipeline
+│   ├── api/
+│   │   └── chat_router.py         # FastAPI route handlers
+│   ├── app.py                     # Application entry point (dependency injection)
+│   ├── ingest.py                  # Document ingestion script (standalone)
+│   ├── test_system.py             # 11 integration tests
+│   ├── requirements.txt
+│   ├── .env.sample
+│   └── mediassist_data/           # Document corpus & databases
+│       ├── billing/ clinical/ nursing/ equipment/ general/
+│       ├── db/mediassist.db       # SQLite database
+│       └── qdrant_db/             # Local Qdrant vector database
 ├── frontend/                      # Next.js App Router (Tailwind CSS + TS)
-│   ├── public/                    # Image assets & screenshots
-│   └── src/app/
-│       ├── page.tsx               # Main Dashboard page (Light/Dark themes)
-│       └── layout.tsx
-├── README.md                      # Setup & documentation (this file)
-└── Medibot_Assignment_Instruction.md # Assignment instructions
+│   └── src/app/page.tsx           # Main dashboard (Light/Dark themes)
+├── architecture_v2.png            # Architecture diagram
+├── README.md
+└── Medibot_Assignment_Instruction.md
 ```
 
 ---
@@ -144,7 +168,7 @@ This reads and parses the 12 medical PDF and markdown documents, indexing **343 
 ### 4. Start Backend
 ```bash
 # From backend/ directory
-uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 ```
 The FastAPI backend server will start on [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
