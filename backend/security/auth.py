@@ -1,32 +1,23 @@
-import os
-import jwt
+"""
+MediBot Authentication & Authorization — JWT token management and user verification.
+
+Handles:
+  - Demo user authentication (plaintext for demo purposes)
+  - JWT token creation and validation
+  - Role-based collection mappings
+"""
 import datetime
+import jwt
 from typing import Dict, Any, Optional
-from dotenv import load_dotenv
 
-# Load env variables
-load_dotenv()
+from config.settings import (
+    JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRY_HOURS,
+    DEMO_USERS, ROLE_COLLECTIONS
+)
+from utils.logger import get_logger
 
-# Secret key to sign JWT tokens
-JWT_SECRET = os.getenv("JWT_SECRET", "mediassist-super-secret-key-12345!")
-JWT_ALGORITHM = "HS256"
+logger = get_logger("security.auth")
 
-# Demo user accounts and their roles
-DEMO_USERS = {
-    "dr.mehta": {"password": "password", "role": "doctor", "name": "Dr. Mehta"},
-    "nurse.priya": {"password": "password", "role": "nurse", "name": "Nurse Priya"},
-    "billing.ravi": {"password": "password", "role": "billing_executive", "name": "Billing Exec Ravi"},
-    "tech.anand": {"password": "password", "role": "technician", "name": "Technician Anand"},
-    "admin.sys": {"password": "password", "role": "admin", "name": "Admin Sys"}
-}
-
-ROLE_COLLECTIONS = {
-    "doctor": ["clinical", "nursing", "general"],
-    "nurse": ["nursing", "general"],
-    "billing_executive": ["billing", "general"],
-    "technician": ["equipment", "general"],
-    "admin": ["general", "clinical", "nursing", "billing", "equipment"]
-}
 
 def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
     """
@@ -36,12 +27,15 @@ def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
     """
     user = DEMO_USERS.get(username.lower())
     if user and user["password"] == password:
+        logger.info(f"User '{username}' authenticated successfully as '{user['role']}'")
         return {
             "username": username,
             "role": user["role"],
             "name": user["name"]
         }
+    logger.warning(f"Failed authentication attempt for username '{username}'")
     return None
+
 
 def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None) -> str:
     """Generates a signed JWT token containing user metadata."""
@@ -49,10 +43,11 @@ def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] 
     if expires_delta:
         expire = datetime.datetime.utcnow() + expires_delta
     else:
-        expire = datetime.datetime.utcnow() + datetime.timedelta(hours=12)
+        expire = datetime.datetime.utcnow() + datetime.timedelta(hours=JWT_EXPIRY_HOURS)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
+
 
 def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     """Decodes and validates a signed JWT token."""
@@ -60,4 +55,5 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         return payload
     except jwt.PyJWTError:
+        logger.warning("Failed to decode JWT token — expired or malformed")
         return None
