@@ -16,6 +16,9 @@ flowchart TD
     B --> C["POST /chat (Question + Token)"]
     C --> D{"Semantic Router (Embedding-based)\nCosine Similarity to Route Centroids"}
     
+    %% Off-Topic Route
+    D -- "off_topic" --> H2["Polite Rejection (services/semantic_router.py)"]
+    
     %% Analytical Route
     D -- "analytical" --> E{"Is Role billing_executive or admin?"}
     E -- "Yes" --> F["SQL RAG Pipeline (services/sql_rag_service.py)"]
@@ -34,6 +37,7 @@ flowchart TD
 
     style A fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1
     style D fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:#E65100
+    style H2 fill:#FFEBEE,stroke:#E53935,stroke-width:2px,color:#B71C1C
     style F fill:#EDE7F6,stroke:#5E35B1,stroke-width:2px,color:#4A148C
     style J fill:#E0F2F1,stroke:#00897B,stroke-width:2px,color:#004D40
     style K fill:#E0F2F1,stroke:#00897B,stroke-width:2px,color:#004D40
