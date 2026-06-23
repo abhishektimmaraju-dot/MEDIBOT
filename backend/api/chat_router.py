@@ -140,7 +140,15 @@ def chat(req: ChatRequest, active_role: str = Depends(get_role_from_token)):
         logger.info(f"Route decision: {q_type.upper()}")
 
         # Step 2: Route request
-        if q_type == "analytical":
+        if q_type == "off_topic":
+            logger.info("Routing to Off-Topic Rejection")
+            return {
+                "answer": "I can only assist with queries related to MediAssist operations, billing, claims, equipment maintenance, and clinical procedures. Your question appears to be outside this scope.",
+                "sources": [],
+                "retrieval_type": "off_topic",
+                "role": active_role
+            }
+        elif q_type == "analytical":
             # Check permissions: only billing_executive and admin can access SQL RAG
             if active_role in ["billing_executive", "admin"]:
                 logger.info("Routing to SQL RAG Chain")

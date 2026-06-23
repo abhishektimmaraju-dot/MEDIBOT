@@ -215,7 +215,23 @@ class TestMediBotSystem(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         res_data = response.json()
         self.assertNotIn("Access Denied", res_data["answer"])
-        self.assertIn("could not find relevant information", res_data["answer"].lower())
+        self.assertEqual(res_data["retrieval_type"], "off_topic")
+        self.assertIn("outside this scope", res_data["answer"].lower())
+        self.assertEqual(res_data["sources"], [])
+
+    def test_hawaii_trip_off_topic_query(self):
+        """Verify that general travel requests are routed as off-topic."""
+        token = self._get_token("nurse.priya")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        response = self.client.post("/chat", json={
+            "question": "Suggest a 5-day travel itinerary for Hawaii."
+        }, headers=headers)
+
+        self.assertEqual(response.status_code, 200)
+        res_data = response.json()
+        self.assertEqual(res_data["retrieval_type"], "off_topic")
+        self.assertIn("outside this scope", res_data["answer"].lower())
         self.assertEqual(res_data["sources"], [])
 
 

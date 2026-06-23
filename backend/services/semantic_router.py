@@ -70,11 +70,29 @@ DOCUMENT_UTTERANCES = [
     "How to file a claim submission for cashless patients?",
 ]
 
+OFF_TOPIC_UTTERANCES = [
+    "Can you write a Python function to sort a list?",
+    "Suggest a 5-day travel itinerary for Hawaii.",
+    "Explain the quantum physics double-slit experiment.",
+    "Write a marketing copy for a new sneaker release.",
+    "How do I bake a chocolate chip cookie?",
+    "What is the capital of France?",
+    "Recommend some good sci-fi books to read.",
+    "Tell me a joke about computers.",
+    "Who won the soccer world cup in 2022?",
+    "Help me design a database schema for an e-commerce website.",
+    "What is the meaning of life?",
+    "How do I fix a flat tire on a bicycle?",
+    "What is the weather like in New York today?",
+    "Explain the plot of the movie Inception.",
+    "Write a love poem in Shakespearean style.",
+]
+
 
 class SemanticRouter:
     """
     Embedding-based semantic router that classifies queries into
-    'analytical' or 'document' categories using cosine similarity
+    'analytical', 'document', or 'off_topic' categories using cosine similarity
     against pre-computed route centroids.
     """
 
@@ -89,21 +107,26 @@ class SemanticRouter:
 
         with PipelineTimer("semantic_router_init"):
             # Encode all utterances in a single batch for efficiency
-            all_utterances = ANALYTICAL_UTTERANCES + DOCUMENT_UTTERANCES
+            all_utterances = ANALYTICAL_UTTERANCES + DOCUMENT_UTTERANCES + OFF_TOPIC_UTTERANCES
             all_embeddings = embedding_adapter.encode_dense_batch(all_utterances, show_progress=False)
 
             # Split embeddings back into route groups
             n_analytical = len(ANALYTICAL_UTTERANCES)
+            n_document = len(DOCUMENT_UTTERANCES)
+            
             analytical_embeddings = all_embeddings[:n_analytical]
-            document_embeddings = all_embeddings[n_analytical:]
+            document_embeddings = all_embeddings[n_analytical:n_analytical + n_document]
+            off_topic_embeddings = all_embeddings[n_analytical + n_document:]
 
             # Compute centroids (mean of each route's embeddings)
             self.analytical_centroid = np.mean(analytical_embeddings, axis=0)
             self.document_centroid = np.mean(document_embeddings, axis=0)
+            self.off_topic_centroid = np.mean(off_topic_embeddings, axis=0)
 
             # Normalize centroids for fast cosine similarity via dot product
             self.analytical_centroid = self.analytical_centroid / np.linalg.norm(self.analytical_centroid)
             self.document_centroid = self.document_centroid / np.linalg.norm(self.document_centroid)
+            self.off_topic_centroid = self.off_topic_centroid / np.linalg.norm(self.off_topic_centroid)
 
         self.embedding_adapter = embedding_adapter
         self.threshold = SEMANTIC_ROUTER_THRESHOLD
@@ -112,11 +135,11 @@ class SemanticRouter:
 
     def classify(self, query: str) -> Tuple[str, float]:
         """
-        Classifies a query as 'analytical' or 'document' using cosine similarity.
+        Classifies a query as 'analytical', 'document', or 'off_topic' using cosine similarity.
         
         Returns:
             Tuple of (route_name, confidence_score)
-            - route_name: 'analytical' or 'document'
+            - route_name: 'analytical', 'document', or 'off_topic'
             - confidence_score: cosine similarity to the winning centroid
         """
         with PipelineTimer("semantic_routing"):
@@ -127,17 +150,22 @@ class SemanticRouter:
             # Compute cosine similarity to each centroid
             analytical_score = float(np.dot(query_vec, self.analytical_centroid))
             document_score = float(np.dot(query_vec, self.document_centroid))
+            off_topic_score = float(np.dot(query_vec, self.off_topic_centroid))
 
         logger.info(
             f"Semantic Router scores — analytical: {analytical_score:.4f}, "
-            f"document: {document_score:.4f}"
+            f"document: {document_score:.4f}, off_topic: {off_topic_score:.4f}"
         )
 
+        scores = {
+            "analytical": analytical_score,
+            "document": document_score,
+            "off_topic": off_topic_score
+        }
+
         # Return the route with the highest similarity
-        if analytical_score > document_score:
-            return "analytical", analytical_score
-        else:
-            return "document", document_score
+        best_route = max(scores, key=scores.get)
+        return best_route, scores[best_route]
 
     def classify_with_fallback(self, query: str) -> str:
         """
@@ -148,12 +176,15 @@ class SemanticRouter:
         """
         route, confidence = self.classify(query)
 
-        # Compute margin between top and second route
+        # Compute scores again to get margin
         query_vec = np.array(self.embedding_adapter.encode_dense(query))
         query_vec = query_vec / np.linalg.norm(query_vec)
         analytical_score = float(np.dot(query_vec, self.analytical_centroid))
         document_score = float(np.dot(query_vec, self.document_centroid))
-        margin = abs(analytical_score - document_score)
+        off_topic_score = float(np.dot(query_vec, self.off_topic_centroid))
+        
+        sorted_scores = sorted([analytical_score, document_score, off_topic_score], reverse=True)
+        margin = sorted_scores[0] - sorted_scores[1]
 
         if margin < 0.05:
             # Scores too close — use keyword fallback for safety
@@ -173,9 +204,17 @@ class SemanticRouter:
             "tickets", "claims", "resolved", "rejected", "escalated",
             "number of", "breakdown", "statistics"
         ]
+        off_topic_keywords = [
+            "python", "javascript", "code", "hawaii", "trip", "itinerary",
+            "recipe", "bake", "movie", "poem", "joke", "world cup"
+        ]
         query_lower = query.lower()
         if any(kw in query_lower for kw in analytical_keywords):
             logger.info("Keyword fallback classified as: ANALYTICAL")
             return "analytical"
+        if any(kw in query_lower for kw in off_topic_keywords):
+            logger.info("Keyword fallback classified as: OFF_TOPIC")
+            return "off_topic"
         logger.info("Keyword fallback classified as: DOCUMENT")
         return "document"
+
